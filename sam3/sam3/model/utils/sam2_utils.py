@@ -97,7 +97,7 @@ def load_video_frames(
     video_path,
     image_size,
     offload_video_to_cpu,
-    img_mean=(0.5, 0.5, 0.5),
+    img_mean=(0.5, 0.5, 0.5), #https://github.com/facebookresearch/sam3/issues/229 -> Differnet mean and std for SAM3
     img_std=(0.5, 0.5, 0.5),
     async_loading_frames=False,
     compute_device=torch.device("cuda"),

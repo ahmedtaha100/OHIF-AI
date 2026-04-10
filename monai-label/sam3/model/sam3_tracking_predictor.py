@@ -92,6 +92,8 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
                 clip_high=clip_high,
                 #async_loading_frames=async_loading_frames,
                 compute_device=inference_state["storage_device"],
+                use_imagenet_norm=False,
+                use_sam3_norm=True,  # mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5), see facebookresearch/sam3#229
             )
             
             inference_state["images"] = images
