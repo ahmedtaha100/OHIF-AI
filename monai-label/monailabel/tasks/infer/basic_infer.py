@@ -146,7 +146,7 @@ gem_model_id = "google/medgemma-1.5-4b-it"
 
 gem_model_kwargs = dict(
     dtype=torch.bfloat16,
-    device_map="auto",
+    device_map={"": "cuda:1"},
     offload_buffers=True,
 )
 

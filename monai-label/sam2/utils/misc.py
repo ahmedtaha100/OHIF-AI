@@ -356,10 +356,13 @@ def load_medical_slices(
     offload_video_to_cpu,
     compute_device,
     clip_low=None,
-    clip_high=None
+    clip_high=None,
+    use_imagenet_norm=True,
+    use_sam3_norm=False,
 ):
     """
-
+    use_sam3_norm: if True, use mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5) for SAM3
+        (https://github.com/facebookresearch/sam3/issues/229). Input still percentile-clipped and min-max to [0,1].
     """
     #if isinstance(video_path, str) and os.path.isdir(video_path):
     #    jpg_folder = video_path
@@ -408,6 +411,16 @@ def load_medical_slices(
     img_mean = images.mean()
     img_std = images.std()
     images = torch.unsqueeze(images, 1).expand(-1, 3,-1,-1).clone()
+
+    if use_sam3_norm:
+        # SAM3: different mean/std (https://github.com/facebookresearch/sam3/issues/229)
+        images = (images - images.min()) / (images.max() - images.min() + 1e-8)
+        img_mean = torch.tensor([0.5, 0.5, 0.5], dtype=torch.float32)[None, :, None, None]
+        img_std = torch.tensor([0.5, 0.5, 0.5], dtype=torch.float32)[None, :, None, None]
+    elif use_imagenet_norm:
+        images = (images - images.min()) / (images.max() - images.min() + 1e-8)
+        img_mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32)[None, :, None, None]
+        img_std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32)[None, :, None, None]
 
     video_height = img_y
     video_width = img_x
