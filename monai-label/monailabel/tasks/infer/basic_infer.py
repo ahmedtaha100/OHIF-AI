@@ -1075,18 +1075,15 @@ class BasicInferTask(InferTask):
             ann_obj_id = 1
             video_segments = {}  # video_segments contains the per-frame segmentation results
             
-            ann_frame_list = np.unique(np.array(list(map(lambda x: x[2], result_json['pos_points'])), dtype=np.int16))
-            ann_frame_list_neg = np.unique(np.array(list(map(lambda x: x[2], result_json['neg_points'])), dtype=np.int16))
+            ann_frame_list = np.array(list(map(lambda x: x[2], result_json['pos_points'])), dtype=np.int16)
+            ann_frame_list_neg = np.array(list(map(lambda x: x[2], result_json['neg_points'])), dtype=np.int16)
+            ann_frame_list = np.unique(np.concatenate((ann_frame_list, ann_frame_list_neg)))
 
             if "pos_boxes" not in result_json:
                 result_json["pos_boxes"] = []            
             if len(result_json["pos_boxes"])!=0:
-                #result_json["boxes"]=data["boxes"]
-                #logger.info(f"prompt boxes: {result_json["boxes"]}")
-                # Temp remove pos points
-                #data['pos_points']=[]
-                ann_frame_list_box = np.unique(np.array(list(map(lambda x: x[2], [x for xs in result_json["pos_boxes"] for x in xs])), dtype=np.int16))
-                ann_frame_list = np.unique(np.concatenate((ann_frame_list, ann_frame_list_box, ann_frame_list_neg)))
+                ann_frame_list_box = np.array(list(map(lambda x: x[2], [x for xs in result_json["pos_boxes"] for x in xs])), dtype=np.int16)
+                ann_frame_list = np.unique(np.concatenate((ann_frame_list, ann_frame_list_box)))
 
             for i in range(len(ann_frame_list)):
 
@@ -1162,7 +1159,6 @@ class BasicInferTask(InferTask):
                 else:
                     with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
                         if medsam2 == 'sam3':
-                            predictor.clear_all_points_in_video(inference_state)
                             _, out_obj_ids, _, out_mask_logits = predictor.add_new_points_or_box(
                             inference_state=inference_state,
                             frame_idx=ann_frame_idx,

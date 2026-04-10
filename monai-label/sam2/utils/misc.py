@@ -358,7 +358,10 @@ def load_medical_slices(
     clip_low=None,
     clip_high=None,
     use_imagenet_norm=True,
-    use_sam3_norm=False,
+    use_sam3_norm=False, # For SAM2/MedSAM2, this is the default normalization used in the model, but I'm not sure whether it performs better for SAM2 (previous setup, volume wise normalization).
+                         # However, for SAM3, this is not the default normalization used in the model. 
+                         # img_mean=(0.5, 0.5, 0.5), #https://github.com/facebookresearch/sam3/issues/229 -> Differnet mean and std for SAM3
+                         # img_std=(0.5, 0.5, 0.5),
 ):
     """
     use_sam3_norm: if True, use mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5) for SAM3
