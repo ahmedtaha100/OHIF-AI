@@ -270,8 +270,16 @@ Radiology-style reports from **3D CT/MRI** are separate from segmentation. In th
 - ⚠️ **GPU / VRAM (local MedGemma)** — [Local MedGemma GPUs](#local-medgemma-gpus).
 - ⚠️ **vLLM** — You are responsible for starting the server, model compatibility, and **`VLLM_BASE_URL`** if not on the default host port.
 
+**MedGemma (local)** — model variant and **Thinking**:
+
 <a href="docs/images/medgemma.png" target="_blank">
-  <img src="docs/images/medgemma.png" alt="Report generation (toolbox)" width="700">
+  <img src="docs/images/medgemma.png" alt="VLM Report Generation with MedGemma" width="700">
+</a>
+
+**OpenAI** — API **model id** and **Reasoning effort**:
+
+<a href="docs/images/gpt.png" target="_blank">
+  <img src="docs/images/gpt.png" alt="VLM Report Generation with OpenAI" width="700">
 </a>
 
 **VoxTell + MedGemma demo:**
