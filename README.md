@@ -93,7 +93,7 @@ Model checkpoints are typically downloaded automatically during setup. However, 
 
 ### Local MedGemma GPUs
 
-- **`docker-compose.yml`** → **`monai_sam2`** → **`CUDA_VISIBLE_DEVICES`**: which **host** GPUs the container sees (logical `cuda:0`, …; shared with segmentation).
+- **`docker-compose.yml`** → **`monai_server`** → **`CUDA_VISIBLE_DEVICES`**: which **host** GPUs the container sees (logical `cuda:0`, …; shared with segmentation).
 - **`basic_infer.py`** → **`_medgemma_get_processor_and_model`** → **`gem_model_kwargs`**: default **`device_map="auto"`** + **`max_memory`** per logical GPU; adjust caps or use **`device_map={"": "cuda:0"}`** to pin one GPU.
 - Rebuild / restart MONAI after editing **`basic_infer.py`**. Not configured via `.env`.
 
@@ -148,7 +148,7 @@ Report generation can call **Hugging Face** (Hub downloads and/or the **Kimi**, 
    ```bash
    cp .env-sample .env
    ```
-2. **Edit `.env`** and fill in only the providers you use. Docker Compose reads `.env` automatically and passes values into the `monai_sam2` container (see `docker-compose.yml` → `environment`). The MONAI infer task resolves keys from the **infer request** first, then from **these environment variables**:
+2. **Edit `.env`** and fill in only the providers you use. Docker Compose reads `.env` automatically and passes values into the `monai_server` container (see `docker-compose.yml` → `environment`). The MONAI infer task resolves keys from the **infer request** first, then from **these environment variables**:
    - **`HF_TOKEN`** — Hugging Face token ([create a token](https://huggingface.co/settings/tokens)): authenticated downloads (e.g. MedGemma) and **Hugging Face router** VLMs (Kimi / Qwen / Gemma 4).
    - **`GEMINI_API_KEY`** — [Google AI Studio](https://aistudio.google.com/apikey) for Gemini.
    - **`OPENAI_API_KEY`** — [OpenAI](https://platform.openai.com/api-keys) for GPT-class models.
@@ -294,18 +294,19 @@ Radiology-style reports from **3D CT/MRI** are separate from segmentation. In th
 
 For faster workflow, you can use the following keyboard shortcuts:
 
-**Prompt Types:**
-- `a` - Point
+**Prompt Tools:**
+- `p` - Point
 - `s` - Scribble
-- `d` - Lasso
-- `f` - Bounding box
+- `l` - Lasso
+- `b` - Bounding box
+
+**Segment Management:**
+- `m` - Add Segment
+- `r` - Reset active Segment (clears prompts and mask)
 
 **Mode Controls:**
 - `q` - Toggle Live Mode
-- `w` - Toggle Positive/Negative
-- `e` - Toggle Refine/New
-- `r` - Run inference (if live mode off)
-- `t` - Circulate nnInteractive -> SAM2 -> MedSAM2 -> SAM3
+- `t` - Toggle Positive/Negative
 
 <a href="docs/images/hotkeys.png" target="_blank">
   <img src="docs/images/hotkeys.png" alt="List of hotkeys" width="700">

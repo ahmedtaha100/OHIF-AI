@@ -10,7 +10,7 @@ services:
       # Relative to context
       dockerfile: ./platform/app/.recipes/Nginx-Orthanc/dockerfile
     image: webapp:latest
-    container_name: ohif_orthanc
+    container_name: ohif_viewer
     volumes:
       # Nginx config
       - ./Viewers/platform/app/.recipes/Nginx-Orthanc/config/nginx.conf:/etc/nginx/nginx.conf
@@ -31,7 +31,7 @@ services:
   orthanc:
     image: jodogne/orthanc-plugins
     hostname: orthanc
-    container_name: orthancPACS
+    container_name: PACS
     volumes:
       # Config
       - ./Viewers/platform/app/.recipes/Nginx-Orthanc/config/orthanc.json:/etc/orthanc/orthanc.json:ro
@@ -42,7 +42,7 @@ services:
       - '4242:4242' # Orthanc REST API
       - '8042:8042' # Orthanc HTTP
   
-  monai_sam2:
+  monai_server:
     build:
       # Project root
       context: ./
@@ -50,10 +50,16 @@ services:
       dockerfile: ./monai-label/Dockerfile
     image: monai
     runtime: nvidia
-    container_name: monai_sam2
+    container_name: monai_server
     volumes:
        # Persist data
       - ./monai-label/predictions:/code/predictions
+      # Model weights (populated once via scripts/download_weights.sh)
+      - ./monai-label/checkpoints:/code/checkpoints
+      # Radiology app (downloaded on first container start by entrypoint.sh)
+      - ./monai-label/apps:/code/apps
+      # MONAI Label DICOM cache — survives image rebuilds so downloaded studies are not re-fetched
+      - ./monai-label/volumes/root-cache:/root/.cache
     extra_hosts:
       # Lets MONAI reach vLLM / other services bound on the host (e.g. port 8000)
       - "host.docker.internal:host-gateway"
@@ -75,7 +81,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-            #  device_ids: ['7:1']
+              #device_ids: ['7:1']
               capabilities: [gpu]  # Request GPUs for this service
     shm_size: '10gb' #runtime: nvidia  # Use NVIDIA runtime
     ports:
