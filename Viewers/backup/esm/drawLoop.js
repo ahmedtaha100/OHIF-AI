@@ -254,7 +254,8 @@ function cancelDrawing(element) {
     }
 }
 function shouldHaltDrawing(canvasPoints, subPixelResolution) {
-    const minPoints = Math.max(subPixelResolution * 3, 3);
+    // We need to support tiny scribbles as well
+    const minPoints = 3; //Math.max(subPixelResolution * 3, 3);
     return canvasPoints.length < minPoints;
 }
 function haltDrawing(element, canvasPoints) {
