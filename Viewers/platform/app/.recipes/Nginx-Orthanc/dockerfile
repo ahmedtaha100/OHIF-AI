@@ -69,6 +69,7 @@ COPY ./backup/esm/drawLoop.js /usr/src/app/node_modules/@cornerstonejs/tools/dis
 COPY ./backup/esm/labelmapDisplay.js /usr/src/app/node_modules/@cornerstonejs/tools/dist/esm/tools/displayTools/Labelmap/labelmapDisplay.js
 COPY ./backup/esm/addLabelmapToElement.js /usr/src/app/node_modules/@cornerstonejs/tools/dist/esm/tools/displayTools/Labelmap/addLabelmapToElement.js
 COPY ./backup/esm/removeLabelmapFromElement.js /usr/src/app/node_modules/@cornerstonejs/tools/dist/esm/tools/displayTools/Labelmap/removeLabelmapFromElement.js
+COPY ./backup/esm/performStackLabelmapUpdate.js /usr/src/app/node_modules/@cornerstonejs/tools/dist/esm/eventListeners/segmentation/labelmap/performStackLabelmapUpdate.js
 
 COPY ./backup/esm/elementCursor.js /usr/src/app/node_modules/@cornerstonejs/tools/dist/esm/cursors/elementCursor.js
 
