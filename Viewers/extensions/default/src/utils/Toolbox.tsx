@@ -260,6 +260,14 @@ export function Toolbox({ buttonSectionId, title, defaultOpen = true }: { button
           measurementService.toggleVisibilityMeasurementMany(uids, next);
           break;
         }
+        case 'z': {
+          if (event.ctrlKey && !event.shiftKey) {
+            event.preventDefault();
+            event.stopPropagation();
+            commandsManager.run('undoNninter');
+          }
+          break;
+        }
         case 'delete': {
           event.preventDefault();
           event.stopPropagation();
@@ -463,7 +471,7 @@ export function Toolbox({ buttonSectionId, title, defaultOpen = true }: { button
                          <SelectItem value="medsam2">MedSAM2</SelectItem>
                          <SelectItem value="sam3">SAM3</SelectItem>
                        </SelectContent>
-                     </Select>
+                    </Select>
                    </div>
                  </div>
                 )}
