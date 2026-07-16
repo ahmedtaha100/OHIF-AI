@@ -9,8 +9,10 @@ it does not recompute, reinterpret, or fetch research results at presentation ti
 from __future__ import annotations
 
 import argparse
+import ast
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 import shutil
 import sys
 import textwrap
@@ -64,6 +66,165 @@ class Section:
     title: str
     summary: str
     renderer: Callable[[int, Theme], list[str]]
+
+
+@dataclass(frozen=True)
+class TourStop:
+    """One stable file-and-symbol stop in the live PI repository tour."""
+
+    topic: str
+    path: str
+    anchors: tuple[str, ...]
+    show: str
+    why: str
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
+TOUR_STOPS: tuple[TourStop, ...] = (
+    TourStop(
+        "Presenter map",
+        "docs/pi-presentation-guide.md",
+        ("## Exact live file order", "## Technical explanation", "## Paper reproduction boundary"),
+        "Open these three headings first; they are the stable navigation and speaking map.",
+        "This keeps the screen recording in evidence order and prevents a code tour from becoming improvised.",
+    ),
+    TourStop(
+        "AutoPET nnU-Net input",
+        "scripts/prepare_autopet_nnunet_input.py",
+        ("main",),
+        "Show CT, PET, and TTB being resampled to the PET reference grid and exported as the paired model channels and label.",
+        "AutoPET supplies the PET/CT imaging backbone. TTB is an offline annotation used for labels, simulated corrections, training rewards, and scoring.",
+    ),
+    TourStop(
+        "AutoPET cohort and candidate routes",
+        "scripts/run_fusion_only_cohort_v2.py",
+        ("split_for", "freeze_contract", "stage_prompt_round", "run_prompt_no_score"),
+        "Show the patient-disjoint split, paired FDG/PSMA studies, ResEnc baseline, two robot-user rounds, and KEEP/intersection/union routes.",
+        "The robot clicks are generated from ground-truth errors. That makes candidate construction oracle-assisted even though policy features exclude ground truth.",
+    ),
+    TourStop(
+        "Fusion route construction",
+        "scripts/finalize_fusion_only_cohort_v2.py",
+        ("candidate_paths", "generate_fusions"),
+        "Show the four allowed proposals: round-one and round-two intersection or union, with KEEP as the fallback.",
+        "Unsafe prompt-mask replacement was removed after it caused large development harms.",
+    ),
+    TourStop(
+        "Voxelwise EDL design",
+        "rl_nninteractive/evidential.py",
+        ("EvidentialErrorNet3D", "dirichlet_alpha", "dirichlet_uncertainty", "error_labels_from_masks", "predict_error_maps"),
+        "Show softplus evidence, alpha = evidence + 1, class probability alpha/S, and vacuity K/S.",
+        "This three-class critic predicts correct, false-negative, and false-positive voxels. It is distinct from both later EDL heads.",
+    ),
+    TourStop(
+        "Evidential point candidates",
+        "rl_nninteractive/evidential_candidates.py",
+        ("evidential_candidates_topk", "evidential_stop_decision"),
+        "Show how uncertainty components become ranked positive or negative point actions and when the greedy baseline abstains.",
+        "These candidates feed the lung and pancreas candidate-plus-STOP RL experiment.",
+    ),
+    TourStop(
+        "Point-selection RL",
+        "rl_nninteractive/rl_policy.py",
+        ("build_action_features", "RealEdlEnv", "TrainConfig", "train"),
+        "Show state and action features, candidate-or-STOP actions, behavior cloning, REINFORCE, the value baseline, and delta-Dice reward minus click cost.",
+        "RL tied greedy EDL on lung but both learned selectors lost to KEEP on pancreas.",
+    ),
+    TourStop(
+        "AutoPET component-recovery RL",
+        "rl_nninteractive/autopet_rl_recovery.py",
+        ("extract_candidates", "EvidentialCandidateClassifier", "RecoveryPolicy", "rollout_policy", "train_rl"),
+        "Show PET-hot component features, the binary EDL classifier, and one learned accept-or-skip decision per ranked component.",
+        "There is no learned STOP or value network here. The legacy 16-scan artifact also used a ground-truth-derived initial seed; this file is the later hardened successor.",
+    ),
+    TourStop(
+        "Route-level EDL gate",
+        "rl_nninteractive/prompt_update_edl.py",
+        ("EvidentialUtilityHead", "extract_update_features", "evidential_utility_loss", "calibrate_temperature", "decide_update"),
+        "Show the 70 GT-free direct features, 48-unit MLP, binary Dirichlet evidence, signed utility, temperature scaling of P(accept), and the three-part gate.",
+        "The route head is the third EDL model. Probability is calibrated; vacuity and signed utility are separate outputs.",
+    ),
+    TourStop(
+        "Frozen hybrid selector",
+        "rl_nninteractive/edl_fusion_hybrid.py",
+        ("fit_safe_rule_set", "train_edl", "edl_gate", "nested_development_replay", "select_frozen_policy_routes"),
+        "Show the deterministic consensus/PET-uptake screen, patient-disjoint EDL fitting and calibration, nested replay, and KEEP fallback.",
+        "This is the sealed primary policy: a fixed screen plus EDL veto. It is not an RL network and it does not fit on test outcomes.",
+    ),
+    TourStop(
+        "One-shot sealed evaluation",
+        "scripts/run_edl_hybrid_test_once.py",
+        ("validate_non_test_preflight", "_score_both_frozen_policies_once", "execute_once"),
+        "Show hash/clearance validation, the atomic one-pass receipt, label-free selection, and the single later ground-truth load used to score both frozen policies.",
+        "This is the leakage boundary that makes the negative result interpretable instead of a product of repeated test tuning.",
+    ),
+    TourStop(
+        "Patient-level policy statistics",
+        "rl_nninteractive/route_policy_eval.py",
+        ("_patient_rows", "_policy_summary", "_bootstrap_ci"),
+        "Show patient aggregation, harm and coverage summaries, and the paired patient bootstrap confidence interval.",
+        "The unit of uncertainty is the patient, so paired FDG/PSMA studies are not treated as independent people.",
+    ),
+    TourStop(
+        "Paper reproduction audit",
+        "scripts/present_pi_walkthrough.py",
+        ("_paper_claims", "_release_forensics", "_manuscript_code", "_statistics"),
+        "Show the missing final checkpoint/splits/evaluator outputs, 0/154 U-Net match, partial PPO restoration, manuscript-code differences, and statistical limits.",
+        "These are serious reproducibility discrepancies. They support non-reproducibility from the public release, not an allegation of fabrication or intent.",
+    ),
+)
+
+
+def _python_symbols(source: str, filename: str) -> set[str]:
+    """Return stable qualified class/function names without importing the file."""
+
+    tree = ast.parse(source, filename=filename)
+    symbols: set[str] = set()
+
+    def collect(body: Sequence[ast.stmt], prefix: str = "") -> None:
+        for node in body:
+            if not isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            qualified = f"{prefix}.{node.name}" if prefix else node.name
+            symbols.add(qualified)
+            collect(node.body, qualified)
+
+    collect(tree.body)
+    return symbols
+
+
+def check_tour_readiness(
+    repository_root: str | Path = REPOSITORY_ROOT,
+    *,
+    stops: Sequence[TourStop] = TOUR_STOPS,
+) -> tuple[str, ...]:
+    """Return actionable errors when a live-tour file or anchor has drifted."""
+
+    root = Path(repository_root).resolve()
+    errors: list[str] = []
+    for stop in stops:
+        path = root / Path(stop.path)
+        if not path.is_file():
+            errors.append(f"MISSING FILE: {stop.path}")
+            continue
+        source = path.read_text(encoding="utf-8")
+        if path.suffix.lower() == ".py":
+            try:
+                available = _python_symbols(source, stop.path)
+            except SyntaxError as error:
+                errors.append(
+                    f"INVALID PYTHON: {stop.path}:{error.lineno or '?'} {error.msg}"
+                )
+                continue
+        else:
+            available = set()
+        for anchor in stop.anchors:
+            found = anchor in available if path.suffix.lower() == ".py" else anchor in source
+            if not found:
+                errors.append(f"MISSING ANCHOR: {stop.path} :: {anchor}")
+    return tuple(errors)
 
 
 def _cell(value: str | Cell) -> Cell:
@@ -205,6 +366,57 @@ def _fit_widths(width: int, ratios: Sequence[float], minimums: Sequence[int]) ->
     return widths
 
 
+def _file_tour(width: int, theme: Theme) -> list[str]:
+    lines = _banner(
+        "5. LIVE REPOSITORY FILE TOUR",
+        "Open these files in order. Use symbol search instead of fragile line numbers.",
+        width,
+        theme,
+    )
+    lines.extend(
+        _callout(
+            "PRECHECK",
+            "python scripts\\present_pi_walkthrough.py --check-readiness",
+            width,
+            theme,
+            "good",
+        )
+    )
+    for index, stop in enumerate(TOUR_STOPS, start=1):
+        lines.append("")
+        lines.extend(
+            _callout(
+                f"{index:02}. {stop.topic.upper()}",
+                f"FILE  {stop.path}",
+                width,
+                theme,
+                "info",
+            )
+        )
+        lines.extend(
+            _bullets(
+                (
+                    Cell(f"JUMP TO  {' -> '.join(stop.anchors)}", "evidence"),
+                    Cell(f"SHOW     {stop.show}", "plain"),
+                    Cell(f"WHY      {stop.why}", "limit"),
+                ),
+                width,
+                theme,
+            )
+        )
+    lines.append("")
+    lines.extend(
+        _callout(
+            "BOUNDARY",
+            "TTB-derived robot clicks make the prompt proposals indirectly ground-truth-dependent, and the legacy component-recovery seed was oracle-assisted. The sealed selector features are GT-free, and outcomes are opened only in the one-shot scorer.",
+            width,
+            theme,
+            "warn",
+        )
+    )
+    return lines
+
+
 def _opening(width: int, theme: Theme) -> list[str]:
     lines = _banner(
         "SEGMENTATION POLICY + PAPER REPRODUCTION AUDIT",
@@ -229,7 +441,7 @@ def _opening(width: int, theme: Theme) -> list[str]:
 
 def _pipeline(width: int, theme: Theme) -> list[str]:
     lines = _banner(
-        "1. FROM BASELINE TO A SEALED DECISION",
+        "6. FROM BASELINE TO A SEALED DECISION",
         "We evaluated increasingly constrained ways to improve segmentation, then audited the source paper.",
         width,
         theme,
@@ -255,8 +467,8 @@ def _pipeline(width: int, theme: Theme) -> list[str]:
                     Cell("Improve Dice without harm", "info"),
                 ),
                 (
-                    Cell("RL-style", "heading"),
-                    "Compared rule-based and learned offline route selectors, including a contextual-bandit comparator and oracle upper bounds.",
+                    Cell("Selectors", "heading"),
+                    "Compared learned RL experiments with later rule-based and evidential offline selectors, plus oracle upper bounds.",
                     Cell("No test tuning", "info"),
                 ),
                 (
@@ -286,7 +498,7 @@ def _pipeline(width: int, theme: Theme) -> list[str]:
 
 def _policy_result(width: int, theme: Theme) -> list[str]:
     lines = _banner(
-        "2. SEALED RL / EDL POLICY RESULT",
+        "7. SEALED SAFETY-SCREEN / EDL RESULT",
         "The primary endpoint was Dice. The policy also had to satisfy a zero-harm gate.",
         width,
         theme,
@@ -326,6 +538,20 @@ def _policy_result(width: int, theme: Theme) -> list[str]:
                 "warn",
             ),
             *_callout(
+                "METHOD",
+                "The sealed primary was a deterministic consensus/PET-uptake screen followed by an EDL veto. It was not an RL network.",
+                width,
+                theme,
+                "info",
+            ),
+            *_callout(
+                "SELECTED FAILURE",
+                "train_0025_PSMA | R2 union | P(accept) 0.7377 | vacuity 0.03146 | predicted utility +0.4182 | Dice 0.54172 -> 0.50327 | delta -0.03845",
+                width,
+                theme,
+                "bad",
+            ),
+            *_callout(
                 "DECISION",
                 "Keep ResEnc-L / KEEP. Do not claim an RL or EDL segmentation benefit and do not train PPO from this failed route-selection formulation.",
                 width,
@@ -340,7 +566,7 @@ def _policy_result(width: int, theme: Theme) -> list[str]:
 
 def _paper_claims(width: int, theme: Theme) -> list[str]:
     lines = _banner(
-        "3. PAPER CLAIMS VERSUS THE PUBLIC RELEASE",
+        "1. PAPER CLAIMS VERSUS THE PUBLIC RELEASE",
         "Question: can the linked materials independently reproduce or verify the headline results?",
         width,
         theme,
@@ -398,7 +624,7 @@ def _paper_claims(width: int, theme: Theme) -> list[str]:
 
 def _release_forensics(width: int, theme: Theme) -> list[str]:
     lines = _banner(
-        "4. WHY THE RELEASE CANNOT RUN THE CLAIMED EVALUATION",
+        "2. WHY THE RELEASE CANNOT RUN THE CLAIMED EVALUATION",
         "Two independent blockers: the weights do not match the documented model, and the evaluator points to missing private assets.",
         width,
         theme,
@@ -462,7 +688,7 @@ def _release_forensics(width: int, theme: Theme) -> list[str]:
 
 def _manuscript_code(width: int, theme: Theme) -> list[str]:
     lines = _banner(
-        "5. MANUSCRIPT-TO-CODE DISCREPANCIES",
+        "3. MANUSCRIPT-TO-CODE DISCREPANCIES",
         "Training the current public code would test a materially different method, not reproduce the manuscript method.",
         width,
         theme,
@@ -549,7 +775,7 @@ def _manuscript_code(width: int, theme: Theme) -> list[str]:
 
 def _statistics(width: int, theme: Theme) -> list[str]:
     lines = _banner(
-        "6. STATISTICAL AND REPORTING DISCREPANCIES",
+        "4. STATISTICAL AND REPORTING DISCREPANCIES",
         "We tested whether the published paired-test p-values could follow from the reported summaries and holdout sizes.",
         width,
         theme,
@@ -606,7 +832,7 @@ def _statistics(width: int, theme: Theme) -> list[str]:
 
 def _compute(width: int, theme: Theme) -> list[str]:
     lines = _banner(
-        "7. WOULD AN H200 HAVE CHANGED THE RESULT?",
+        "8. WOULD AN H200 HAVE CHANGED THE RESULT?",
         "No. More compute changes runtime or experiment scale; it does not change a frozen evaluation or restore missing artifacts.",
         width,
         theme,
@@ -642,7 +868,7 @@ def _compute(width: int, theme: Theme) -> list[str]:
 
 def _decision(width: int, theme: Theme) -> list[str]:
     lines = _banner(
-        "8. FINAL PI DECISION",
+        "9. FINAL PI DECISION",
         "Two negative findings, each with a different and explicit claim boundary.",
         width,
         theme,
@@ -686,12 +912,13 @@ def _decision(width: int, theme: Theme) -> list[str]:
 
 
 SECTIONS: tuple[Section, ...] = (
-    Section("pipeline", "Pipeline timeline", "From baseline through the sealed test and paper audit.", _pipeline),
-    Section("policy", "Sealed RL/EDL result", "Dice, confidence interval, coverage, harm, and decision.", _policy_result),
     Section("paper", "Paper claims vs release", "Which headline claims can and cannot be verified.", _paper_claims),
     Section("release", "Weight and evaluator forensics", "0/154 match and the private checkpoint blocker.", _release_forensics),
     Section("code", "Manuscript vs code", "Eight audited implementation and configuration discrepancies.", _manuscript_code),
     Section("statistics", "Statistics and reporting", "P-value bounds, 8.34x timing, and the human comparison.", _statistics),
+    Section("files", "Live repository file tour", "Exact files, symbols, and technical boundaries to show.", _file_tour),
+    Section("pipeline", "Pipeline timeline", "From baseline through the sealed test and paper audit.", _pipeline),
+    Section("policy", "Sealed safety-screen/EDL result", "Dice, confidence interval, coverage, harm, and decision.", _policy_result),
     Section("compute", "H200 decision", "Why faster hardware would not change the frozen result.", _compute),
     Section("decision", "Final PI decision", "What we can conclude and what should happen next.", _decision),
 )
@@ -723,6 +950,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--list", action="store_true", help="list presentation sections and exit")
     parser.add_argument(
+        "--check-readiness",
+        action="store_true",
+        help="verify every live-tour file and symbol, then exit",
+    )
+    parser.add_argument(
         "--section",
         action="append",
         choices=tuple(SECTION_BY_KEY),
@@ -750,6 +982,31 @@ def _list_sections(stream: TextIO, theme: Theme) -> None:
         print(f"  {theme.paint(section.key.ljust(12), 'info')} {section.summary}", file=stream)
 
 
+def _print_readiness(stream: TextIO, theme: Theme) -> int:
+    errors = check_tour_readiness()
+    if errors:
+        print(theme.paint("PI PRESENTATION READINESS: FAIL", "bad"), file=stream)
+        for error in errors:
+            print(f"  {theme.paint('FAIL', 'bad')} {error}", file=stream)
+        return 1
+    print(theme.paint("PI PRESENTATION READINESS: PASS", "good"), file=stream)
+    for index, stop in enumerate(TOUR_STOPS, start=1):
+        anchors = " | ".join(stop.anchors)
+        print(
+            f"  {theme.paint(f'{index:02}', 'good')} {stop.path} :: {anchors}",
+            file=stream,
+        )
+    anchor_count = sum(len(stop.anchors) for stop in TOUR_STOPS)
+    print(
+        theme.paint(
+            f"Verified {len(TOUR_STOPS)} files and {anchor_count} symbols/sections under {REPOSITORY_ROOT}",
+            "good",
+        ),
+        file=stream,
+    )
+    return 0
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -766,6 +1023,8 @@ def main(
     if args.list:
         _list_sections(output, theme)
         return 0
+    if args.check_readiness:
+        return _print_readiness(output, theme)
 
     selected = [SECTION_BY_KEY[key] for key in args.section] if args.section else list(SECTIONS)
     terminal_width = shutil.get_terminal_size((104, 30)).columns
