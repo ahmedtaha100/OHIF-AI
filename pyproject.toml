@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77,<78"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ohif-ai-rl-nninteractive"
+version = "0.1.0"
+description = "RL interaction-policy scaffold for frozen nnInteractive tumor segmentation."
+readme = "docs/rl-nninteractive-repro.md"
+requires-python = ">=3.11"
+dependencies = [
+  "gymnasium>=1.3,<2",
+  "numpy>=1.26,<3",
+  "scipy>=1.11,<2",
+]
+
+[project.scripts]
+rl-nninteractive = "rl_nninteractive.cli:main"
+rl-nninteractive-real-smoke = "rl_nninteractive.real_smoke:main"
+rl-nninteractive-phase1-small = "rl_nninteractive.phase1_small:main"
+rl-nninteractive-phase1-real = "rl_nninteractive.phase1_real:main"
+rl-nninteractive-phase2-smoke = "rl_nninteractive.phase2_smoke:main"
+rl-nninteractive-throughput = "rl_nninteractive.throughput:main"
+rl-nninteractive-verify-baseline = "rl_nninteractive.verify_baseline:main"
+rl-nninteractive-blackwell-handoff = "rl_nninteractive.blackwell_handoff:main"
+
+[tool.setuptools]
+packages = ["rl_nninteractive"]

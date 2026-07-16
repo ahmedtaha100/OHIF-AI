@@ -103,20 +103,28 @@ download_path = snapshot_download(
 
 VOX_MODEL_NAME = "voxtell_v1.1" # Updated models may be available in the future
 
-vox_download_path = snapshot_download(
-      repo_id="mrokuss/VoxTell",
-      allow_patterns=[f"{VOX_MODEL_NAME}/*", "*.json"],
-      local_dir=DOWNLOAD_DIR
-)
-vox_model_path = os.path.join(DOWNLOAD_DIR, VOX_MODEL_NAME)
-from voxtell.inference.predictor import VoxTellPredictor
-vox_predictor = VoxTellPredictor(model_dir=vox_model_path, device=torch.device("cuda:0"))
+vox_predictor: Optional[Any] = None
+
+
+def _get_vox_predictor():
+    global vox_predictor
+    if vox_predictor is None:
+        snapshot_download(
+            repo_id="mrokuss/VoxTell",
+            allow_patterns=[f"{VOX_MODEL_NAME}/*", "*.json"],
+            local_dir=DOWNLOAD_DIR,
+        )
+        vox_model_path = os.path.join(DOWNLOAD_DIR, VOX_MODEL_NAME)
+        from voxtell.inference.predictor import VoxTellPredictor
+
+        vox_predictor = VoxTellPredictor(model_dir=vox_model_path, device=torch.device("cuda:0"))
+    return vox_predictor
 
 from nnInteractive.inference.inference_session import nnInteractiveInferenceSession
 
 session = nnInteractiveInferenceSession(
     device=torch.device("cuda:0"),
-    use_torch_compile=True,
+    use_torch_compile=False,
     verbose=True,
     torch_n_threads=os.cpu_count(),
     do_autozoom=True,
@@ -147,18 +155,41 @@ except Exception as _warmup_err:
 # Initialize the DetInferencer
 #inferencer = DetInferencer(model=config_path, weights=checkpoint, palette='random')
 
-predictor_sam2 = build_sam2_video_predictor(model_cfg, sam2_checkpoint, vos_optimized=False)
+predictor_sam2: Optional[Any] = None
+sam3_model: Optional[Any] = None
+predictor_sam3: Optional[Any] = None
+predictor_med: Optional[Any] = None
 
-if os.path.exists(sam3_checkpoint):
-    sam3_model = build_sam3_video_model(checkpoint_path=sam3_checkpoint)
-    predictor_sam3 = sam3_model.tracker
-    predictor_sam3.backbone = sam3_model.detector.backbone
-else:
-    print(f"Warning: SAM3 checkpoint not found at {sam3_checkpoint}, skipping SAM3 model initialization")
-    sam3_model = None
-    predictor_sam3 = None
 
-predictor_med = build_sam2_video_predictor_npz(medsam2_model_cfg, medsam2_checkpoint, vos_optimized=False)
+def _require_checkpoint(path: str, name: str):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"{name} checkpoint not found at {path}")
+
+
+def _get_sam_predictor(model_name: str):
+    global predictor_sam2, predictor_sam3, predictor_med, sam3_model
+
+    if model_name == "medsam2":
+        if predictor_med is None:
+            _require_checkpoint(medsam2_checkpoint, "MedSAM2")
+            predictor_med = build_sam2_video_predictor_npz(
+                medsam2_model_cfg, medsam2_checkpoint, vos_optimized=False
+            )
+        return predictor_med
+
+    if model_name == "sam3":
+        if predictor_sam3 is None:
+            if not os.path.exists(sam3_checkpoint):
+                return None
+            sam3_model = build_sam3_video_model(checkpoint_path=sam3_checkpoint)
+            predictor_sam3 = sam3_model.tracker
+            predictor_sam3.backbone = sam3_model.detector.backbone
+        return predictor_sam3
+
+    if predictor_sam2 is None:
+        _require_checkpoint(sam2_checkpoint, "SAM2")
+        predictor_sam2 = build_sam2_video_predictor(model_cfg, sam2_checkpoint, vos_optimized=False)
+    return predictor_sam2
 
 import transformers
 
@@ -1750,7 +1781,7 @@ class BasicInferTask(InferTask):
                 logger.info(f"Original orientation: {orig_orient}")
                 img_ras = sitk.DICOMOrient(img, "RAS")
                 img_np = sitk.GetArrayFromImage(img_ras)[None]
-                voxtell_seg_np_ras = vox_predictor.predict_single_image(img_np, data['texts'][0])
+                voxtell_seg_np_ras = _get_vox_predictor().predict_single_image(img_np, data['texts'][0])
 
                 voxtell_seg_sitk_ras = sitk.GetImageFromArray(voxtell_seg_np_ras[0])
                 voxtell_seg_sitk_ras.CopyInformation(img_ras)
@@ -2094,16 +2125,16 @@ class BasicInferTask(InferTask):
         #SAM2
         if nnInter == False:
             medsam2 = data['medsam2']
-            if medsam2 == 'medsam2':
-                predictor = predictor_med
-            elif medsam2 == 'sam3':
-                if predictor_sam3 is None:
-                    logger.error(f"SAM3 model not available. Checkpoint not found at {sam3_checkpoint}.")
-                    return f"/code/predictions/sam3_not_found.nii.gz", final_result_json
-                else:
-                    predictor = predictor_sam3
-            else:
-                predictor = predictor_sam2
+            try:
+                predictor = _get_sam_predictor(medsam2)
+            except FileNotFoundError as err:
+                logger.error(str(err))
+                final_result_json["error"] = str(err)
+                return f"/code/predictions/{medsam2 or 'sam2'}_not_found.nii.gz", final_result_json
+            if predictor is None:
+                logger.error(f"SAM3 model not available. Checkpoint not found at {sam3_checkpoint}.")
+                final_result_json["error"] = f"SAM3 checkpoint not found at {sam3_checkpoint}"
+                return f"/code/predictions/sam3_not_found.nii.gz", final_result_json
             start = time.time()
             #result_json["pos_points"]=data["pos_points"]
             result_json["pos_points"] = copy.deepcopy(data["pos_points"]) if data["pos_points"] else []

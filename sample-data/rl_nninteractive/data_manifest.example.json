@@ -1,0 +1,10 @@
+{
+  "status": "mock scaffold manifest",
+  "contains_phi": false,
+  "contains_raw_imaging": false,
+  "datasets": [],
+  "notes": [
+    "Placeholder only. It does not satisfy any real benchmark, training, or evaluation item.",
+    "Future real-data units must write the authoritative data_manifest.md in the Brain work/OHIF-AI docs folder."
+  ]
+}

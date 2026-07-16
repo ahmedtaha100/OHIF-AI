@@ -257,6 +257,8 @@ monai-label/checkpoints/*
 monai-label/data/*
 monai-label/predictions/*
 monai-label/img_cache/*
+monai-label/apps/*
+monai-label/volumes/*
 
 # XNAT
 xnat-docker/postgres-data
@@ -266,3 +268,22 @@ xnat-docker/xnat/plugins
 .env
 .build-hashes/
 docs/superpowers/
+
+# RL-over-nnInteractive Python scaffold
+__pycache__/
+.pytest_cache/
+.coverage
+*.egg-info/
+artifacts/
+
+# Never track raw medical data, model checkpoints, or derived volumes.
+*.dcm
+*.DICOM
+*.nii
+*.nii.gz
+*.nrrd
+*.mha
+*.mhd
+*.ckpt
+*.pt
+*.pth

@@ -98,14 +98,17 @@ def send_response(datastore, result, output, background_tasks):
     res_img = result.get("file")
     res_json = result.get("params")
 
+    if output == "json":
+        if isinstance(res_img, str) and os.path.exists(res_img):
+            background_tasks.add_task(remove_file, res_img)
+        return res_json
+
     if type(res_img) == str:
         if not os.path.exists(res_img):
             res_img = datastore.get_label_uri(res_img, res_tag)
         else:
             background_tasks.add_task(remove_file, res_img)
 
-    if output == "json":
-        return res_json
     if type(res_img) == str:
         m_type = get_mime_type(res_img)
 

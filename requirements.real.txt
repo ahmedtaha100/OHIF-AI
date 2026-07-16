@@ -1,0 +1,9 @@
+# Optional heavy dependencies for the real nnInteractive smoke test.
+# Keep these out of `make setup`; the default test scaffold must not download
+# torch/checkpoints or require a GPU.
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.12.1+cu126
+torchvision==0.27.1+cu126
+nninteractive==2.5.0
+huggingface_hub==1.22.0
+nibabel==5.4.2

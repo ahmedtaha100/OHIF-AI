@@ -1,0 +1,9 @@
+{
+  "seed": 20260704,
+  "cuda_visible_devices": "0",
+  "max_interactions": 5,
+  "mock_mode": true,
+  "nninteractive_endpoint": null,
+  "dataset_manifest": "sample-data/rl_nninteractive/data_manifest.example.json",
+  "output_dir": "artifacts/rl_nninteractive"
+}
